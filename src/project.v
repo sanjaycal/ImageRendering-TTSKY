@@ -22,18 +22,19 @@ module tt_um_example (
   reg [23:0] read_address;
   reg [23:0] write_address;
   reg [23:0] colour;
-  reg [23:0] bounding_box;
+  reg [31:0] bounding_box;
   reg [15:0] current_pixel;
   reg [7:0] uo_out_reg;
   reg [7:0] uio_out_reg;
   reg [7:0] num_shapes;
-  reg [1:0] counter;
+  reg [3:0] counter;
 
   // All output pins must be assigned. If not used, assign to 0.
   assign uio_oe  = 255;
   assign uo_out  = uo_out_reg; 
   assign uio_out = uio_out_reg;
 
+  parameter STARTING_STATE = 255;
   parameter READ_NUM_SHAPES_1 = 0;
   parameter READ_NUM_SHAPES_2 = 1;
   parameter READ_NUM_SHAPES_3 = 2;
@@ -65,34 +66,37 @@ module tt_um_example (
       uio_out_reg<=0;
     end else begin
 	case(state)
-	  READ_NUM_SHAPES_1: begin
+	  STARTING_STATE: begin
 	    uo_out_reg <= read_address[7:0];
 	    uio_out_reg <= read_address[15:8];
+	    state <= READ_NUM_SHAPES_1;
+	  end
+	  READ_NUM_SHAPES_1: begin
+	    uo_out_reg <= read_address[23:16];
+	    uio_out_reg <= 0;
+	    read_address <= 1;
 	    state <= READ_NUM_SHAPES_2;
 	  end
 	  READ_NUM_SHAPES_2: begin
-	    uo_out_reg <= read_address[23:16];
-	    uio_out_reg <= 0;
+	    num_shapes <= ui_in;
 	    state <= READ_NUM_SHAPES_3;
 	  end
 	  READ_NUM_SHAPES_3: begin
-	    num_shapes <= ui_in;
-	    read_address <= 1;
+	    uo_out_reg <= read_address[7:0];
+	    uio_out_reg <= read_address[15:8];
 	    state <= READ_SHAPE_BOUNDING_BOX_1;
 	  end
 	  READ_SHAPE_BOUNDING_BOX_1: begin
-	    uo_out_reg <= read_address[7:0];
-	    uio_out_reg <= read_address[15:8];
-	    state <= READ_SHAPE_BOUNDING_BOX_2;
-	  end
-	  READ_SHAPE_BOUNDING_BOX_2: begin
 	    uo_out_reg <= read_address[23:16];
 	    uio_out_reg <= 0;
+	    state <= READ_SHAPE_BOUNDING_BOX_2;
+	    read_address <= read_address + 1;
+	  end
+	  READ_SHAPE_BOUNDING_BOX_2: begin
 	    state <= READ_SHAPE_BOUNDING_BOX_3;
 	  end
 	  READ_SHAPE_BOUNDING_BOX_3: begin
 	    counter<= counter+1;
-
 	    if(counter==0) begin
               bounding_box[7:0] <= ui_in;
             end else if(counter==1) begin
@@ -102,38 +106,39 @@ module tt_um_example (
             end else if(counter==3) begin
               bounding_box[31:24] <= ui_in;
 	    end
-
 	    if(counter==3) begin
+	      counter <= 0;
               state <= CHECK_BOUNDING_BOX;
             end else begin
+	      uo_out_reg <= read_address[7:0];
+	      uio_out_reg <= read_address[15:8];
               state <= READ_SHAPE_BOUNDING_BOX_1;
-	      read_address <= read_address + 1;
             end
 	  end
 	  CHECK_BOUNDING_BOX: begin
-	    if(current_pixel[7:0]<bounding_box[7:0]) begin //Not in bounding box
-	       
+	    if(current_pixel[6:0]<bounding_box[7:0] || current_pixel[6:0]>bounding_box[15:8] || current_pixel[13:7]<bounding_box[23:16] || current_pixel[13:7]>bounding_box[31:24]) begin //Not in bounding box
 	       colour <= 0;
+	       uo_out_reg <= write_address[7:0];
+	       uio_out_reg <= write_address[15:8];
 	       state <= WRITE_COLOUR_1;
             end else begin
+	       uo_out_reg <= read_address[7:0];
+	       uio_out_reg <= read_address[15:8];
 	       state <= READ_COLOUR_1;
 	       counter <= 0;
-	       read_address <= read_address + 1;
 	    end
           end
 	  READ_COLOUR_1: begin
-	    uo_out_reg <= read_address[7:0];
-	    uio_out_reg <= read_address[15:8];
+	    uo_out_reg <= read_address[23:16];
+	    uio_out_reg <= 0;
 	    state <= READ_COLOUR_2;
 	  end
 	  READ_COLOUR_2: begin
-	    uo_out_reg <= read_address[23:16];
-	    uio_out_reg <= 0;
+	    read_address <= read_address + 1;
 	    state <= READ_COLOUR_3;
 	  end
 	  READ_COLOUR_3: begin
 	    counter<= counter+1;
-
 	    if(counter==0) begin
               colour[7:0] <= ui_in;
             end else if(counter==1) begin
@@ -142,26 +147,24 @@ module tt_um_example (
               colour[23:16] <= ui_in;
 	    end
 
+
 	    if(counter==2) begin
+	      uo_out_reg <= write_address[7:0];
+	      uio_out_reg <= write_address[15:8];
               state <= WRITE_COLOUR_1;
 	      counter <= 0;
             end else begin
+	       uo_out_reg <= read_address[7:0];
+	       uio_out_reg <= read_address[15:8];
               state <= READ_COLOUR_1;
-	      read_address <= read_address + 1;
             end
 	  end
 	  WRITE_COLOUR_1: begin
-	    uo_out_reg <= write_address[7:0];
-	    uio_out_reg <= write_address[15:8];
+	    uo_out_reg <= write_address[23:16];
+	    uio_out_reg <= 255;
 	    state <= WRITE_COLOUR_2;
 	  end
 	  WRITE_COLOUR_2: begin
-	    uo_out_reg <= write_address[23:16];
-	    uio_out_reg <= 255;
-	    state <= WRITE_COLOUR_3;
-	  end
-	  WRITE_COLOUR_3: begin
-	    counter<= counter+1;
 
 	    if(counter==0) begin
               uo_out_reg <= colour[7:0];
@@ -170,17 +173,27 @@ module tt_um_example (
             end else if(counter==2) begin
               uo_out_reg <= colour[23:16];
 	    end
+
 	    write_address <= write_address + 1;
 	    read_address <= 1;
 
+	    state <= WRITE_COLOUR_3;
+	  end
+	  WRITE_COLOUR_3: begin
 	    if(counter==2) begin
               current_pixel <= current_pixel + 1;
+	      uo_out_reg <= read_address[7:0];
+	      uio_out_reg <= read_address[15:8];
+	      counter <= 0;
 	      state <= READ_SHAPE_BOUNDING_BOX_1;
             end else begin
+	      counter<= counter+1;
+	      uo_out_reg <= write_address[7:0];
+	      uio_out_reg <= write_address[15:8];
               state <= WRITE_COLOUR_1;
             end
 	  end
-	  default: state<=0;
+	  default: state<=255;
 	endcase
     end
   end
