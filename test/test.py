@@ -99,7 +99,7 @@ async def SingleShapeTest(dut):
                 await write_to_memory(dut,mem,2**23+(128*y+x)*3, 0, 3)
             else:
                 await read_from_memory(dut, mem, 5, 3)
-                await write_to_memory(dut,mem,2**23+(128*y+x)*3, 255, 3)
+                await write_to_memory(dut,mem,2**23+(128*y+x)*3, 2**24-1, 3)
 
     mem.write_output_to_ppm("singleShapeTest.ppm")
 
